@@ -1,6 +1,9 @@
 import pyaudio, math
+import speech_recognition as sr
 import wave, sys, SpeakingProcessor, VolumeData
 from Logger import *
+
+FILENAME = "output.wav"
 
 sys.set_int_max_str_digits(10000)
 
@@ -20,6 +23,27 @@ def saveAudio(filename, audioFrames: list):
     waveFile.setframerate(VolumeData.RATE)
     waveFile.writeframes(b''.join(audioFrames))
     waveFile.close()
+
+# convert audio file to text
+# return [text, error message]
+def audioToText(filename):
+    # Set up the recognizer
+    r = sr.Recognizer()
+
+    # Load the audio file
+    with sr.AudioFile(filename) as source:
+        audio_data = r.record(source)
+
+    # Convert speech to text
+    try:
+        text = r.recognize_google(audio_data)
+        return text, "Conversion successful"
+    except sr.UnknownValueError:
+        return "", "Error: Speech recognition could not understand audio"
+    except sr.RequestError as e:
+        return "", "Could not request results from Google Speech Recognition service: {}".format(e)
+
+
 
 
 if __name__ == "__main__":
@@ -53,7 +77,8 @@ if __name__ == "__main__":
     stream.close()
     audio.terminate()
 
-    saveAudio("output.wav", processor.getAudio())
+    saveAudio(FILENAME, processor.getAudio())
     print("Audio saved.")
 
-    
+    print(audioToText(FILENAME))
+
