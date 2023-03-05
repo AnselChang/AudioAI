@@ -1,4 +1,5 @@
 from enum import Enum
+import time
 from Logger import Logger, DEBUG, RELEASE
 
 class State(Enum):
@@ -9,10 +10,11 @@ class State(Enum):
 # Determine whether user is speaking or not.
 class SpeakingProcesser:
 
-    def __init__(self, log: Logger, silentVolume: float, speakingVolume: float):
+    def __init__(self, log: Logger, silentVolume: float, speakingVolume: float, timeout = -1):
         self.log = log
         self.SILENT_VOLUME = silentVolume
         self.SPEAKING_VOLUME = speakingVolume
+        self.TIMEOUT = timeout
 
         self.frames = []
 
@@ -22,11 +24,13 @@ class SpeakingProcesser:
         self.MIN_SILENCE_FRAMES_NEEDED_TO_END = 10
 
         self._currentNumSilentFrames = 0
+        self._startTime = None
 
     # Clear recording and reset internal state
     def reset(self):
         self.frames = []
         self.state = State.BEFORE_SPEAK
+        self._startTime = None
 
     def isDone(self):
         return self.state == State.AFTER_SPEAK and len(self.frames) > 0
@@ -43,9 +47,12 @@ class SpeakingProcesser:
 
             # We keep recording data as soon as we hear something
             if volume > self.SILENT_VOLUME:
+                if self._startTime is None:
+                    self._startTime = time.time()
                 self.frames.append(audioFrame)
             else:
                 self.frames.clear()
+                self._startTime = None
 
             self.log.log(DEBUG, "BEFORE: {}".format(len(self.frames)))
 
@@ -66,7 +73,8 @@ class SpeakingProcesser:
                 self._currentNumSilentFrames += 1
 
             # We've officially reached the end of the recording
-            if self._currentNumSilentFrames >= self.MIN_SILENCE_FRAMES_NEEDED_TO_END:
+            timedOut = self.TIMEOUT != -1 and time.time() - self._startTime > self.TIMEOUT
+            if timedOut or self._currentNumSilentFrames >= self.MIN_SILENCE_FRAMES_NEEDED_TO_END:
                 
                 # at this point, no recording will happen even if you call tick(), unless you call reset()
                 self.state = State.AFTER_SPEAK
